@@ -12,44 +12,70 @@
     -->
 <meta charset="utf-8">
 <title>HSV Colour Segmentation Explorer</title>
-<link href="style.css" rel="stylesheet" type="text/css" />
 <link href="https://fonts.googleapis.com/css?family=Space+Mono&display=swap" rel="stylesheet">
 <style type="text/css">
-.dg {
-    text-align: left;
-}
-.dg .property-name {
-    font: 11px Lucida Grande,sans-serif;
-    line-height: 27px;
-}
-.dg.main .close-button {
-    font: 11px Lucida Grande,sans-serif;
-    line-height: 27px;
-}
 .cell-top {
     vertical-align: top;
 }
+html{font-family:'Space Mono',monospace;width:100%;height:100%;display:flex;text-align:center;justify-content:center;align-items:center;flex-direction:column}
+canvas, img, video {
+    border: 1px solid black;
+}
+td {
+    padding: 5px 0px 0px 5px;
+    text-align: center;
+}
+button {
+    display: inline-block;
+    color: #fff;
+    background-color: #337ab7;
+    border-color: #2e6da4;
+    padding: 6px 12px;
+    margin-bottom: 0;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    -ms-touch-action: manipulation;
+    touch-action: manipulation;
+    cursor: pointer;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    background-image: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+}
+button[disabled] {
+    cursor: not-allowed;
+    filter: alpha(opacity=65);
+    -webkit-box-shadow: none;
+    box-shadow: none;
+    opacity: .65;
+}
+.control {
+    margin-bottom: 3px;
+}
+.caption {
+    margin: 0;
+    font-weight: bold;
+}
+.hidden {
+    display: none;
+}
 </style>
 
+<p class="err" id="errorMessage"></p>
 <h2>HSV Colour Segmentation Explorer</h2>
 <p>
     Play with the slidebars until you isolate a bright colour.
+    <br>
+    Everything happens locally on your machine, nothing is sent to the server.
 </p>
-<p class="err" id="errorMessage"></p>
 <div id="container">
     <table>
-        <tr>
-            <td></td>
-            <td>
-                <div>
-                    <span>Current Mode: </span><span id="filterName">Pass Through</span>
-                </div>
-            </td>
-            <td>
-                <div>Controls</div>
-            </td>
-            <td></td>
-        </tr>
         <tr>
             <td></td>
             <td class="cell-top">
@@ -68,7 +94,7 @@
 <script src="https://webrtc.github.io/adapter/adapter-5.0.4.js" type="text/javascript"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r16/Stats.min.js" type="text/javascript"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.6.4/dat.gui.min.js" type="text/javascript"></script>
-<script src="utils.js" type="text/javascript"></script>
+<script src="https://docs.opencv.org/master/utils.js" type="text/javascript"></script>
 <script type="text/javascript">
 let utils = new Utils('errorMessage');
 
@@ -321,7 +347,10 @@ function processVideo() {
     switch (controls.filter) {
         case 'passThrough': result = passThrough(src); break;
         case 'gray': result = gray(src); break;
+        case 'green': pass;
+        case 'blue': pass;
         case 'cyan': pass;
+        case 'purple': pass;
         case 'hsvMask': 
             result = hsv(src);
             result = hsv_masking(result, src);
@@ -329,6 +358,9 @@ function processVideo() {
             break;
         default: result = passThrough(src);
     }
+
+    cv.putText(result, 'Current Mode: '+filters[controls.filter], {x:10,y:20},
+               cv.FONT_HERSHEY_SIMPLEX, 0.5, [0,255,0,255],2);
 
     cv.imshow('canvasOutput', result);
     stats.end();
@@ -343,8 +375,6 @@ let filters = {
     'gray': 'Gray',
     'hsv': 'HSV',
 };
-
-let filterName = document.getElementById('filterName');
 
 let controls;
 
@@ -361,7 +391,6 @@ function initUI() {
         filter: 'passThrough',
         setFilter: function(filter) {
             this.filter = filter;
-            filterName.innerHTML = filters[filter];
         },
         passThrough: function() {
             this.setFilter('passThrough');
@@ -375,6 +404,24 @@ function initUI() {
             hueMin.setValue(50);
             satMin.setValue(40);
             valMin.setValue(20);
+        },
+        blue: function() {
+            this.setFilter('hsvMask');
+            hueMax.setValue(135);
+            satMax.setValue(228);
+            valMax.setValue(255);
+            hueMin.setValue(50);
+            satMin.setValue(80);
+            valMin.setValue(40);
+        },
+        purple: function() {
+            this.setFilter('hsvMask');
+            hueMax.setValue(160);
+            satMax.setValue(255);
+            valMax.setValue(255);
+            hueMin.setValue(118);
+            satMin.setValue(62);
+            valMin.setValue(40);
         },
         gray: function() {
             this.setFilter('gray');
@@ -475,11 +522,13 @@ function initUI() {
     let hueMax = inRange.add(controls, 'hueMax', 0, 255, 1).name('Hue Max');
     let satMax = inRange.add(controls, 'satMax', 0, 255, 1).name('Saturation Max');
     let valMax = inRange.add(controls, 'valMax', 0, 255, 1).name('Value Max');
-    let hueMin = inRange.add(controls, 'hueMin', 0, 255, 1).name('Hue Max');
-    let satMin = inRange.add(controls, 'satMin', 0, 255, 1).name('Saturation Max');
-    let valMin = inRange.add(controls, 'valMin', 0, 255, 1).name('Value Max');
+    let hueMin = inRange.add(controls, 'hueMin', 0, 255, 1).name('Hue Min');
+    let satMin = inRange.add(controls, 'satMin', 0, 255, 1).name('Saturation Min');
+    let valMin = inRange.add(controls, 'valMin', 0, 255, 1).name('Value Min');
 
     gui.add(controls, 'cyan');
+    gui.add(controls, 'blue');
+    gui.add(controls, 'purple');
 
 }
 
@@ -517,9 +566,13 @@ function onVideoStopped() {
     streaming = false;
 }
 
-utils.loadOpenCv(() => {
+function onOpenCVReady() {
+    if (cv.getBuildInformation) {
+        console.log(cv.getBuildInformation());
+    }
     initUI();
     startCamera();
-});
+}
 </script>
+<script async src="https://docs.opencv.org/master/opencv.js" onload="onOpenCVReady();" type="text/javascript"></script>
 </html>
