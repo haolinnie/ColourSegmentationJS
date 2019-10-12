@@ -11,6 +11,25 @@
 
     -->
 <meta charset="utf-8">
+<!-- Google Analytics -->
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+  ga('create', 'UA-145693599-1', 'auto');
+  ga('send', 'pageview');
+  // Measure outbound links
+  function handleOutboundLinkClicks(event) {
+    ga('send', 'event', {
+      eventCategory: 'Outbound Link',
+      eventAction: 'click',
+      eventLabel: event.target.href,
+      transport: 'beacon'
+    });
+  }
+</script>
+<!-- End Google Analytics -->
 <title>HSV Colour Segmentation Explorer</title>
 <link href="https://fonts.googleapis.com/css?family=Space+Mono&display=swap" rel="stylesheet">
 <style type="text/css">
@@ -239,7 +258,7 @@ let contoursColor = [];
 for (let i = 0; i < 10000; i++) {
     contoursColor.push([Math.round(Math.random() * 255),
                         Math.round(Math.random() * 255),
-                        Math.round(Math.random() * 255), 0]);
+                        Math.round(Math.random() * 255), 255]);
 }
 
 function contours(src) {
@@ -277,7 +296,7 @@ function hsv_detection(hsv_mask, src) {
             idxMax = i;
         }
     }
-    area = 0.8 * areaMax;
+    area = 0.3 * areaMax;
 
     if (contours.size()>0){
         for (let i = 0; i<contours.size(); ++i) {
@@ -285,16 +304,15 @@ function hsv_detection(hsv_mask, src) {
             if (cv.contourArea(contours.get(i)) > area)
                 // Draw contour
                 cv.drawContours(src, contours, i, color, 1, cv.LINE_8, hierarchy);
-        }
-        // Calculate centroid
-        let Moments = cv.moments(contours.get(idxMax), false);
-        let cent_x = Math.round(Moments.m10 / Moments.m00);
-        let cent_y = Math.round(Moments.m01 / Moments.m00);
-        // Draw centroid
-        let color = [0, 255, 0, 0];
-        cv.circle(src, {x: cent_x, y: cent_y}, 5, color, -1);
-        cv.putText(src, "("+cent_x+", "+cent_y+")", {x: cent_x-25, y: cent_y-25},
-                   cv.FONT_HERSHEY_SIMPLEX, 0.5, [255, 255, 255, 255], 2);
+                // Calculate centroid
+                let Moments = cv.moments(contours.get(idxMax), false);
+                let cent_x = Math.round(Moments.m10 / Moments.m00);
+                let cent_y = Math.round(Moments.m01 / Moments.m00);
+                // Draw centroid
+                cv.circle(src, {x: cent_x, y: cent_y}, 5, [0, 255, 0, 0], -1);
+                cv.putText(src, "("+cent_x+", "+cent_y+")", {x: cent_x-25, y: cent_y-25},
+                        cv.FONT_HERSHEY_SIMPLEX, 0.5, [255, 255, 255, 255], 2);
+                }
     }
 
     contours.delete(); hierarchy.delete();
@@ -385,6 +403,15 @@ function initUI() {
     stats.domElement.style.position = 'absolute';
     stats.domElement.style.right = '0px';
     stats.domElement.style.top = '0px';
+    
+    function setThresh(hM, sM, vM, hm, sm, vm) {
+        hueMax.setValue(hM);
+        satMax.setValue(sM);
+        valMax.setValue(vM);
+        hueMin.setValue(hm);
+        satMin.setValue(sm);
+        valMin.setValue(vm);
+    }
 
     controls = {
         draw: true,
@@ -396,32 +423,24 @@ function initUI() {
             this.setFilter('passThrough');
             this.draw = false;
         },
+        reset: function() {
+            setThresh(255,255,255,0,0,0);
+        },
         cyan: function() {
             this.setFilter('hsvMask');
-            hueMax.setValue(255);
-            satMax.setValue(255);
-            valMax.setValue(255);
-            hueMin.setValue(50);
-            satMin.setValue(40);
-            valMin.setValue(20);
+            setThresh(255, 255, 255, 50, 40, 20);
         },
         blue: function() {
             this.setFilter('hsvMask');
-            hueMax.setValue(135);
-            satMax.setValue(228);
-            valMax.setValue(255);
-            hueMin.setValue(50);
-            satMin.setValue(80);
-            valMin.setValue(40);
+            setThresh(135, 228, 255, 50, 80, 40);
         },
         purple: function() {
             this.setFilter('hsvMask');
-            hueMax.setValue(160);
-            satMax.setValue(255);
-            valMax.setValue(255);
-            hueMin.setValue(118);
-            satMin.setValue(62);
-            valMin.setValue(40);
+            setThresh(160, 255, 255, 118, 62, 40);
+        },
+        magenta: function() {
+            this.setFilter('hsvMask');
+            setThresh(255, 255, 255, 140, 110, 100);
         },
         gray: function() {
             this.setFilter('gray');
@@ -512,6 +531,7 @@ function initUI() {
     gui.add(controls, 'passThrough').name(filters['passThrough']).onChange(function() {
         closeLastFolder(null);
     });
+    gui.add(controls, 'reset').name('Reset');
 
     let inRange = gui.addFolder("HSV Thresholding");
     inRange.domElement.onclick = function() {
@@ -526,9 +546,12 @@ function initUI() {
     let satMin = inRange.add(controls, 'satMin', 0, 255, 1).name('Saturation Min');
     let valMin = inRange.add(controls, 'valMin', 0, 255, 1).name('Value Min');
 
-    gui.add(controls, 'cyan');
-    gui.add(controls, 'blue');
-    gui.add(controls, 'purple');
+    let presets = gui.addFolder("Presets");
+    presets.open();
+    presets.add(controls, 'cyan');
+    presets.add(controls, 'blue');
+    presets.add(controls, 'purple');
+    presets.add(controls, 'magenta');
 
 }
 
